@@ -191,7 +191,14 @@ four tabs at the bottom:
 2. **Filtered Kept** — just the lines the tool is confident belong in the
    KPMG-comparable category. This is likely the tab you actually want.
 3. **Review Queue** — the small number of lines the tool wasn't confident
-   about either way. Someone should give these a quick manual look.
+   about either way. Someone should give these a quick manual look. This tab
+   has two columns for the decision: **Recommendation**, which is the tool's
+   best guess (`keep` or `discard`), and **Decision**, which is left blank for
+   you to fill in with your final call. Type `keep` or `discard` in the
+   **Decision** column for each row after reviewing it. These decisions are
+   worth keeping — in future they can be fed back in to make the tool more
+   accurate over time (see "Future implementation" under "For technical
+   readers").
 4. **Pivot Summaries** — a rolled-up view of total spend by service type and
    by supplier, for a quick at-a-glance summary.
 
@@ -302,3 +309,68 @@ round-trip (load → normalize → write → reload).
 - The example input (`Work in Progress.xlsx`, 2025) and target
   (`End Result.xlsx`, 2024) are different years with different vocabularies,
   so a golden-file check is a directional sanity band, not an exact match.
+
+### Future implementation — toward a continuously improving classifier
+
+Today the tool classifies, but it has **no way to measure how accurate it is**, and
+therefore no feedback loop to improve it. The following is a roadmap for closing that
+loop. The central constraint shapes everything: **real accuracy metrics require labelled
+ground truth (a trusted correct answer per line), which the system does not yet collect.**
+So the work bootstraps labels first, and leans on label-free signals until enough labels
+accumulate. The recommended direction is to source ground truth from **analysts' own
+review decisions** (labels accrue as a byproduct of work they already do) and to use the
+metrics primarily to **tune the system** (thresholds, taxonomy, prompts).
+
+**Phase 1 — Capture ground truth (the prerequisite for everything else).**
+Add an editable "Analyst verdict" column (keep / discard / blank) to the **Review Queue**
+sheet in `po_classifier/io_excel.py` (`write_output`), plus a small loader that reads a
+completed workbook back into `{row_key: verdict}`. This turns the human review that
+already happens into a growing labelled dataset — no separate labelling project.
+*Limitation:* it only covers the ambiguous review band, so it measures the hardest cases,
+not overall accuracy; and it depends on analysts actually recording a verdict.
+
+**Phase 2 — Label-free health metrics (work from day one, no ground truth needed).**
+- **Review-queue rate & score distribution** — % kept / discarded / flagged and the spread
+  of similarity/confidence scores per run (partly printed already in `cli.py`). *Why:*
+  cheap regression and drift detection between quarters. *Limitation:* measures behaviour,
+  not correctness — a confidently-wrong run can look perfectly healthy.
+- **Reproducibility check** — re-run the same file and diff the output. *Why:* protects the
+  deterministic-rerun property the LLM cache provides. *Limitation:* confirms consistency,
+  not correctness.
+
+**Phase 3 — Diagnostic accuracy (once labels exist).**
+A new `po_classifier/metrics.py` that joins captured verdicts to the scored rows via a new
+`metrics` subcommand (e.g. `python -m po_classifier metrics --scored out.xlsx --labels
+reviewed.xlsx`), keeping measurement separate from classification.
+- **Confusion matrix + Precision / Recall / F1** on the keep decision. *Why:* these map
+  onto the two failure modes — low precision wastes analyst time, low recall silently drops
+  KPMG-comparable spend. **Lead with recall**: dropped comparable spend is the costlier
+  error for a competitive-analysis tool. *Limitation:* threshold-specific; the data is
+  imbalanced (most lines are not comparable), so always report the precision/recall pair,
+  never F1 alone.
+- **Per-stage / per-category breakdown** — the same metrics sliced by `source_stage`
+  (`rules` / `llm` / `llm+web`, already recorded) and `kpmg_category`. *Why:* localises
+  where errors concentrate so tuning effort is targeted. *Limitation:* slices get noisy
+  with few labels.
+
+**Phase 4 — Tuning tools (when the label set is large enough to trust).**
+- **Confidence calibration** — check that a 0.7 confidence really means ~70% correct
+  (reliability curve / expected calibration error). *Why:* the human-in-the-loop design
+  hinges on `review_threshold`; poor calibration makes that routing arbitrary. *Limitation:*
+  needs labels across the full confidence range; rule-stage confidences are hand-assigned
+  constants in `score_rules.py`, so expect them to calibrate worse than LLM confidences —
+  a useful finding, not a bug.
+- **Threshold sweep / precision-recall curve** — compute precision & recall across the full
+  0–1 range to set `keep_threshold` from evidence rather than a guess. *Why:* makes
+  threshold-setting a deliberate business decision (how much recall do we need?).
+  *Limitation:* overfits to a small sample — needs enough labels to generalise to next
+  quarter.
+
+**Cold-start caveat:** on day one there are zero verdicts, so only the Phase 2 label-free
+metrics work. Do not present Phase 3–4 accuracy numbers until a meaningful sample of labels
+has accumulated, and remember any evaluation against `End Result.xlsx` is 2024 vs a 2025
+input (different suppliers) — an estimate, not a guarantee.
+
+Each phase is independently useful and builds on the previous one, so the loop can be closed
+incrementally: capture labels → watch health → measure accuracy → tune thresholds and
+taxonomy → re-measure.

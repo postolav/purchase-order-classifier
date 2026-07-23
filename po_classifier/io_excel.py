@@ -180,15 +180,19 @@ def write_output(path: str | Path, decisions: List[Decision], pivots: dict, cfg:
     _autofit(ws2)
 
     # Sheet 3 - Review Queue
+    # "Recommendation" is the tool's automatic keep/discard call. "Decision" is left
+    # blank for the analyst to enter their final say; those verdicts are the ground-truth
+    # labels used to train/tune the system later (see README "Future implementation").
     ws3 = wb.create_sheet(out_cfg["sheet_review"])
     ws3.append(["PO Number", "Supplier", "Raw Category", "Amount (EUR)",
-                "KPMG Category", "Similarity", "Confidence", "Decision", "Reason"])
+                "KPMG Category", "Similarity", "Confidence", "Recommendation",
+                "Decision", "Reason"])
     for d in decisions:
         if d.needs_review:
             s = d.score
             ws3.append([d.row.po, d.row.supplier, d.row.category, d.row.amount_eur,
                         s.kpmg_category or "", round(s.similarity, 3),
-                        round(s.confidence, 3), d.decision, s.reason])
+                        round(s.confidence, 3), d.decision, "", s.reason])
     _autofit(ws3)
 
     # Sheet 4 - Pivot Summaries (four tables stacked with titles)
