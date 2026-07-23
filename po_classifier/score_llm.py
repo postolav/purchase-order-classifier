@@ -6,7 +6,7 @@ escalation fires when the Stage-2 result is still uncertain for an unknown suppl
 
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 from .llm import LLMScorer
 from .models import PORow, Score
@@ -24,12 +24,17 @@ def adjudicate(
     review_band: Tuple[float, float],
     web_search: bool,
     max_llm_calls: int,
+    progress: Optional[Callable[[], None]] = None,
 ) -> Dict[int, Score]:
     """Return {row_index: llm_score} for the subset that was escalated.
 
     Escalation policy:
       1. Stage-1 confidence in the middle band -> LLM (no web).
       2. If the LLM is still low-confidence, escalate that supplier to a web lookup.
+
+    `progress`, if given, is called exactly once per in-band row processed (so a caller
+    can advance a progress bar). It is kept generic so this module stays free of any
+    specific bar library.
     """
     out: Dict[int, Score] = {}
     calls = 0
@@ -66,4 +71,6 @@ def adjudicate(
             reason=r["reason"],
             source_stage=r["source_stage"],
         )
+        if progress is not None:
+            progress()
     return out

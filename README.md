@@ -46,6 +46,12 @@ Flags:
 - `--no-web` — use the LLM but disable web-search escalation.
 - `--model claude-opus-4-8` — override the Stage-2 model (default `claude-sonnet-5`;
   web-search escalations always use `claude-opus-4-8`).
+- `--no-progress` — disable progress bars. (Bars also auto-disable when stderr is not a
+  TTY, e.g. when output is piped or redirected, so logs stay clean.)
+
+During a run, progress bars on stderr show Stage 1 (rules, over all rows) and Stage 2
+(LLM, over the ambiguous rows) with live rate and ETA — useful because Stage 2 can take
+~15–25 minutes on the first run before the cache warms up.
 
 ## Tuning what counts as "KPMG"
 

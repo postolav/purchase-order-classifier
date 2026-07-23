@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 
 import yaml
+from tqdm import tqdm
 
 try:
     from dotenv import load_dotenv
@@ -31,6 +32,10 @@ from .kpmg_ref import load_taxonomy
 from .llm import LLMScorer
 
 
+# Fixed character width for progress bars (roughly half a typical terminal).
+BAR_NCOLS = 60
+
+
 def _load_config(path: str) -> dict:
     return yaml.safe_load(Path(path).read_text(encoding="utf-8"))
 
@@ -42,6 +47,10 @@ def cmd_classify(args) -> int:
     if args.no_web:
         cfg["scoring"]["web_search"] = False
 
+    # Progress bars render to stderr (matching the status prints). Auto-disable when
+    # output is not a TTY (piped/redirected) so logs don't fill with carriage returns.
+    disable_bars = args.no_progress or not sys.stderr.isatty()
+
     tax_path = Path(args.config).parent / "taxonomy.yaml"
     tax = load_taxonomy(args.taxonomy or tax_path)
 
@@ -50,7 +59,10 @@ def cmd_classify(args) -> int:
     print(f"  {len(rows)} rows loaded.", file=sys.stderr)
 
     print("Stage 1: deterministic scoring ...", file=sys.stderr)
-    rule_scores = [score_rules.score_row(r, tax) for r in rows]
+    rule_scores = [
+        score_rules.score_row(r, tax)
+        for r in tqdm(rows, total=len(rows), disable=disable_bars, ncols=BAR_NCOLS)
+    ]
 
     llm_scores = {}
     if not args.no_llm:
@@ -65,11 +77,13 @@ def cmd_classify(args) -> int:
             cache_dir=sc.get("cache_dir", "cache"),
             web_search=sc.get("web_search", True),
         )
-        llm_scores = score_llm.adjudicate(
-            rows, rule_scores, scorer, band,
-            web_search=sc.get("web_search", True),
-            max_llm_calls=sc.get("max_llm_calls", 400),
-        )
+        with tqdm(total=n_band, disable=disable_bars, ncols=BAR_NCOLS) as bar:
+            llm_scores = score_llm.adjudicate(
+                rows, rule_scores, scorer, band,
+                web_search=sc.get("web_search", True),
+                max_llm_calls=sc.get("max_llm_calls", 400),
+                progress=bar.update,  # advances one tick per in-band row
+            )
     else:
         print("Stage 2 skipped (--no-llm).", file=sys.stderr)
 
@@ -101,6 +115,7 @@ def main(argv=None) -> int:
     p.add_argument("--model", default=None, help="Override the Stage-2 model id")
     p.add_argument("--no-llm", action="store_true", help="Rules only; no API calls")
     p.add_argument("--no-web", action="store_true", help="Disable web-search escalation")
+    p.add_argument("--no-progress", action="store_true", help="Disable progress bars")
     p.set_defaults(func=cmd_classify)
 
     args = parser.parse_args(argv)

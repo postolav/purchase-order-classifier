@@ -6,3 +6,4 @@ out.xlsx
 *.out.xlsx
 .venv/
 venv/
+old_runs/
