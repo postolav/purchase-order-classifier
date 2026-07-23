@@ -1,0 +1,103 @@
+# Curated KPMG service-offering taxonomy — the single source of truth for
+# "comparable to KPMG". Edit this file to tune what gets kept. Derived from KPMG's
+# public service lines plus the kept "Description" values observed in End Result.xlsx.
+#
+# Each category has:
+#   weight:   base similarity contributed when this category matches (0..1)
+#   include:  keywords/substrings that indicate this category (case-insensitive)
+# A line's rule similarity is the max category weight it matches, adjusted by excludes.
+
+categories:
+  - name: "Audit & Assurance"
+    weight: 1.0
+    include: ["audit", "assurance", "auditing", "accounting", "accountancy"]
+
+  - name: "Tax & Accounting"
+    weight: 1.0
+    include: ["tax", "accounting", "accountancy", "bookkeeping", "payroll"]
+
+  - name: "Management / Business Consulting"
+    weight: 1.0
+    include: ["consult", "consultancy", "consultant", "advisory", "advisor",
+              "business consulting", "management consulting", "strategy"]
+
+  - name: "IT / ICT Consulting & Advisory"
+    weight: 0.95
+    include: ["it consulting", "ict", "ict services", "ict advisory",
+              "ict research", "it advisory", "technology advisory", "digital"]
+
+  - name: "Technology Implementation & Software"
+    weight: 0.85
+    include: ["software", "computer/software", "computer software", "it software",
+              "ict software", "implementation", "systems integration", "erp"]
+
+  - name: "IM&T Maintenance & Support"
+    weight: 0.8
+    include: ["im&t", "imt", "maintenance and support", "it support",
+              "computer/services", "computer services", "ict maintenance",
+              "systems support", "id systems"]
+
+  - name: "ICT Services / Equipment"
+    weight: 0.7
+    include: ["ict equipment", "it hardware", "ict hardware", "computer/hardware",
+              "computer hardware", "laptops", "network", "computer/network",
+              "servers", "cloud"]
+
+  - name: "Risk / Deal Advisory"
+    weight: 0.9
+    include: ["risk", "deal advisory", "transaction", "due diligence",
+              "corporate finance", "restructuring", "forensic"]
+
+  - name: "Research & Analysis"
+    weight: 0.6
+    include: ["research", "analysis", "analytics", "advisory services",
+              "economic analysis", "evaluation"]
+
+# Categories that are clearly NOT comparable to KPMG. A match here overrides an
+# include match unless the include weight is very high (>= override_floor), so that
+# e.g. "COMPUTER SERVICES" is not knocked out by a generic "services" exclude.
+excludes:
+  override_floor: 0.9
+  keywords:
+    - "fuel"
+    - "clothing"
+    - "garment"
+    - "footwear"
+    - "catering"
+    - "food"
+    - "ordnance"
+    - "ammunition"
+    - "vehicle"
+    - "transport"
+    - "medical"
+    - "laboratory"
+    - "utilit"
+    - "electricity"
+    - "gas"
+    - "heating oil"
+    - "waste"
+    - "cleaning"
+    - "building"
+    - "plumbing"
+    - "engineering"
+    - "furniture"
+    - "bedding"
+    - "accommodation"
+    - "rental"
+    - "lease"
+    - "postage"
+    - "freight"
+    - "air corps"
+    - "naval"
+    - "arms"
+    - "eod"
+    - "cbrn"
+    - "pyros"
+    - "battery"
+    - "batteries"
+    - "tyres"
+    - "dairy"
+    - "poultry"
+    - "meat"
+    - "bread"
+    - "fruit"

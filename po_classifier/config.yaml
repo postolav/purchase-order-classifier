@@ -1,0 +1,52 @@
+# Configuration for the Purchase Order classifier.
+# Column mapping is intentionally config-driven: the DoD quarterly files drift in
+# column labels and even which column the amount lands in (see the 'amount' aliases).
+
+input:
+  # Which sheet(s) to read. If a consolidated year tab exists (e.g. "2025"), prefer it;
+  # otherwise list the quarter tabs and they will be concatenated.
+  sheets: ["2025"]
+  # "prefer_consolidated": if a sheet named like a 4-digit year is present, use only it.
+  # "concat": read and concatenate every sheet in `sheets`.
+  dedupe: "prefer_consolidated"
+  # Header auto-detection scans the first rows for a row containing a PO-number-like
+  # header, skipping banner/title rows such as "Publication of Purchase Orders ...".
+  header_detect: "auto"
+  # Canonical field  <-  list of accepted column labels (case-insensitive, trimmed).
+  columns:
+    po:       ["PO Number", "PO NO", "PO No.", "PO No"]
+    supplier: ["Supplier", "Supplier Name", "SUPPLIER"]
+    category: ["Category", "Description", "CATEGORY"]
+    currency: ["Currency", "CURRENCY"]
+    # The amount sometimes appears under a column literally labelled "Currency" or
+    # in a "Currency (€)" / "Column1" column. Order matters: first match with numeric
+    # data wins.
+    amount:   ["Amount", "AMOUNT", "Currency (€)", "Currency (€)"]
+  # Sheet holding FX rates (Currency -> EUR per 1 unit). Optional; if absent, only EUR
+  # rows are converted and others are flagged.
+  fx_sheet: "References"
+
+scoring:
+  # Bulk model for Stage-2 adjudication. Use claude-sonnet-5 to cut cost; claude-opus-4-8
+  # for maximum accuracy. Web-search escalations always use the opus model below.
+  model: "claude-sonnet-5"
+  websearch_model: "claude-opus-4-8"
+  # A line is KEPT when its final similarity >= keep_threshold.
+  keep_threshold: 0.55
+  # Stage-1 confidence in [low, high] is sent to the LLM (the ambiguous middle band).
+  # Outside this band, the deterministic result is trusted.
+  review_band: [0.35, 0.70]
+  # Final confidence below this routes the line to the human-review queue.
+  review_threshold: 0.60
+  # Escalate to Claude web search for unknown suppliers still uncertain after Stage 2.
+  web_search: true
+  cache_dir: "cache"
+  # Cap on distinct (supplier, category) combos sent to the LLM per run (safety valve).
+  max_llm_calls: 400
+
+output:
+  # Sheet names in the output workbook.
+  sheet_scored: "Scored Full List"
+  sheet_kept: "Filtered Kept"
+  sheet_review: "Review Queue"
+  sheet_pivots: "Pivot Summaries"
